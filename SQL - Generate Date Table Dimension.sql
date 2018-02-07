@@ -12,6 +12,14 @@ AS
 	
 	BEGIN
 
+		--Variables for debugging....
+		--
+		--DECLARE		@YearStart INT,	@YearEnd INT
+		--SELECT		@YearStart = '2008',
+		--				@YearEnd = '2018'
+		--
+
+
 		IF(OBJECT_ID('tempdb..#YearRangeTable') IS NOT NULL)
 			DROP TABLE #YearRangeTable;
 
@@ -88,6 +96,44 @@ AS
 		FROM		#YearRangeTable
 		CROSS JOIN	@daysInCalMonth
 		JOIN		#smallIntTable ON Id <= DaysInMonth
-		ORDER BY	Year, MonthNumber, Id, DaysInMonth
+
+			UNION 
+
+		-- Fix: Remember to add in Leap Years! Calculated using a Decimal division vs. Int division 
+		--		CAST(#YearRangeTable.[Year] AS DECIMAL) / 4 = #YearRangeTable.[Year] / 4
+
+		SELECT		CAST(
+						CONCAT(		CAST([Year] AS VARCHAR(4)),
+									CAST(RIGHT(CAST((100 + 2) AS VARCHAR(3)), 2) AS VARCHAR(2)),
+									CAST(RIGHT(CAST((100 + 29) AS VARCHAR(3)), 2) AS VARCHAR(2))
+						) AS INT)																				AS DateKey,
+					DATEFROMPARTS(Year, 2, 29)														AS CalendarDate,
+					DATETIMEFROMPARTS(Year, 2, 29,0,0,0,0)											AS CalendarDateTimeStart,
+					DATETIMEFROMPARTS(Year, 2, 29, 23,59,59,998)										AS CalendarDateTimeEnd,
+					Year																						AS CalendarYear,
+					CAST(
+						CONCAT(			'Q', 
+									CAST(DATEPART(QUARTER, DATEFROMPARTS(Year, 2, 29)) AS VARCHAR(1))			
+						) AS VARCHAR(2))																		AS CalendarQuarterName, 
+					DATEPART(QUARTER, DATEFROMPARTS(Year, 2, 29))										AS CalendarQuarterNumber,
+					DATENAME(MONTH, DATETIMEFROMPARTS(Year, 2, 29, 0, 0, 0, 0))						AS CalendarMonthName,
+					2																					AS CalendarMonthNumber,
+					DATENAME(WEEKDAY, DATETIMEFROMPARTS(Year, 2, 29, 0, 0, 0, 0))						AS DayNameOfWeek,
+					29																							AS DayNumberOfMonth,
+					CASE	WHEN DATENAME(WEEKDAY, DATETIMEFROMPARTS(Year, 2, 29, 0, 0, 0, 0)) IN ('Saturday', 'Sunday') THEN 1 
+							ELSE 0 
+							END																					AS IsWeekend,
+					CASE	WHEN DATENAME(WEEKDAY, DATETIMEFROMPARTS(Year, 2, 29, 0, 0, 0, 0)) IN ('Saturday', 'Sunday') THEN 0 
+							ELSE 1 
+							END																					AS IsWeekday,
+					CASE	WHEN DATENAME(WEEKDAY, DATETIMEFROMPARTS(Year, 2, 29, 0, 0, 0, 0)) IN ('Monday') THEN 1 
+							ELSE 0 
+							END		
+		FROM		#YearRangeTable
+		WHERE		CAST(#YearRangeTable.[Year] AS DECIMAL) / 4 = #YearRangeTable.[Year] / 4
+		ORDER BY	1
+
+
 	END
 GO
+
